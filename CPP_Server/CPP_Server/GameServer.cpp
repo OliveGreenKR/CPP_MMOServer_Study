@@ -6,95 +6,63 @@ using namespace std;
 #include <thread>
 #include<atomic>
 #include <mutex>
+#include <Windows.h>
 
-enum
-{
-	COUNT = 10'0000
-};
-
-class SpinLock
-{
-public:
-	void lock()
-	{
-		//CAS(Compare And-Swap)
-		bool expected = false; // 예상값
-		bool desired = true;   // 원하는 값
-		/* CAS puseudo code
-		if(_locked == expected)
-		{
-			expected = _locked;
-			_locked = desired;
-			return true;
-		}
-		else
-		{
-			expected = _locked;
-			return false;
-		}
-		****/
-
-		while (_locked.compare_exchange_strong(expected, desired) == false)
-		{
-			expected = false; //&를 받기 때문에 초기화를 매번 해주어야함.
-
-			/*auto waiting_time = ::chrono::milliseconds(100);
-			this_thread::sleep_for(waiting_time);*/
-
-			this_thread::sleep_for(100ms); //일정기간 정지
-			
-			this_thread::yield(); //양보
-			/*
-			* sleep_for :  몇 초동안 스케쥴링에서 빠지게 된다.
-			* yield : 언제든지 다시 스케쥴링이 될 수 있음. 죽, 현재 이 순간만 빠지게됨.
-			*/
-			
-		}
-	}
-
-	void unlock()
-	{
-		//_locked = false;
-		_locked.store(false);
-	}
-
-private:
-	atomic<bool> _locked = false;
-};
-
-
-int32 sum = 0;
 mutex m;
-SpinLock spinLock;
+queue<int32> q;
+HANDLE handle;
 
-void Add()
+void Producer()
 {
-	for (int32 i = 0; i < COUNT; i++)
+	while (true)
 	{
-		lock_guard<SpinLock> guard(spinLock);
-		sum++;
+		{
+			//lcok_guard와는 다르게 lock의 생성시기를 조절가능
+			unique_lock<mutex> lock(m);
+			q.push(100);
+		}
+		 
+		//handle를 signal 상태로 바꿔준다
+		::SetEvent(handle);
+
+		this_thread::sleep_for(100ms);
 	}
 }
 
-void Sub()
+void Consumer()
 {
-	for (int32 i = 0; i < COUNT; i++)
+	while (true)
 	{
-		lock_guard<SpinLock> guard(spinLock);
-		sum--;
+		::WaitForSingleObject(handle, INFINITE); //무한대기
+		//>>handle이  signal이 될때까지 무한 대기
+		//Auto Reset이기 때문에  signal이 된것을 확인한 순간, 아래의 코드로 진행이 되게 되면서
+		// 자동으로 handle의 상태는 다시 non-signal로 닫힌다.
+
+		/*::ResetEvent(handle) << 수동으로 설정 시, 이렇게 직접 닫아주어야한다.*/
+
+		unique_lock<mutex> lock(m);
+		if (q.empty() == false)
+		{
+			int32 data = q.front();
+			q.pop();
+			cout << data << endl;
+		}
 	}
 }
-
 
 int main()
 {
-	thread t1(Add);
-	thread t2(Sub);
+	//HANDLE 구조는 정수형 데이터이지만, Event의 ID와 같은 역활을 한다.
+	handle = ::CreateEvent(NULL/*보안속성*/,
+							FALSE /*수동 리셋여부 (false => Auto)*/,
+							FALSE/*초기화상태*/,
+							NULL/*이름*/);
+
+	thread t1(Producer);
+	thread t2(Consumer);
 
 	t1.join();
 	t2.join();
 
-
-	cout << sum << endl;
-
+	::CloseHandle(handle);
 }
