@@ -12,20 +12,27 @@ mutex m;
 queue<int32> q;
 HANDLE handle;
 
+//참고) CV는 User_Level Object이다.
+condition_variable cv;
+
 void Producer()
 {
 	while (true)
 	{
+		// 1) lock을 잡고
+		// 2) 공유 변수 값을 수정
+		// 3) Lock 해제
+		// 4) 조건변수 통해 다른 쓰레드에 통지
 		{
-			//lcok_guard와는 다르게 lock의 생성시기를 조절가능
 			unique_lock<mutex> lock(m);
 			q.push(100);
 		}
 		 
-		//handle를 signal 상태로 바꿔준다
-		::SetEvent(handle);
+		////handle를 signal 상태로 바꿔준다
+		//::SetEvent(handle);
+		cv.notify_one();
 
-		this_thread::sleep_for(100ms);
+		/*this_thread::sleep_for(100ms);*/
 	}
 }
 
@@ -33,19 +40,16 @@ void Consumer()
 {
 	while (true)
 	{
-		::WaitForSingleObject(handle, INFINITE); //무한대기
-		//>>handle이  signal이 될때까지 무한 대기
-		//Auto Reset이기 때문에  signal이 된것을 확인한 순간, 아래의 코드로 진행이 되게 되면서
-		// 자동으로 handle의 상태는 다시 non-signal로 닫힌다.
-
-		/*::ResetEvent(handle) << 수동으로 설정 시, 이렇게 직접 닫아주어야한다.*/
-
+		//::WaitForSingleObject(handle, INFINITE); //무한대기
+		
 		unique_lock<mutex> lock(m);
+		cv.wait(lock, []() { return q.empty() == false; });
+
 		if (q.empty() == false)
 		{
 			int32 data = q.front();
 			q.pop();
-			cout << data << endl;
+			cout << q.size() << endl;
 		}
 	}
 }
