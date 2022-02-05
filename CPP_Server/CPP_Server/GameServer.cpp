@@ -37,6 +37,18 @@ public:
 		while (_locked.compare_exchange_strong(expected, desired) == false)
 		{
 			expected = false; //&를 받기 때문에 초기화를 매번 해주어야함.
+
+			/*auto waiting_time = ::chrono::milliseconds(100);
+			this_thread::sleep_for(waiting_time);*/
+
+			this_thread::sleep_for(100ms); //일정기간 정지
+			
+			this_thread::yield(); //양보
+			/*
+			* sleep_for :  몇 초동안 스케쥴링에서 빠지게 된다.
+			* yield : 언제든지 다시 스케쥴링이 될 수 있음. 죽, 현재 이 순간만 빠지게됨.
+			*/
+			
 		}
 	}
 
