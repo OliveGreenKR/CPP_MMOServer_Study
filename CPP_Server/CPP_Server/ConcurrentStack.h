@@ -50,12 +50,13 @@ private:
 	condition_variable _condVar;
 };
 
+#ifdef SHARED
 template<typename T>
 class LockFreeStack
 {
 	struct Node
 	{
-		Node(const T& value) : data(make_shared<T>(value)), next(nullptr) 
+		Node(const T& value) : data(make_shared<T>(value)), next(nullptr)
 		{}
 		shared_ptr<T> data;
 		shared_ptr<Node> next;
@@ -76,9 +77,10 @@ public:
 		shared_ptr<Node> node = make_shared<Node>(value);
 
 		node->next = std::atomic_load(&_head);
-		while(std::atomic_compare_exchange_weak(&_head, &node->next, node) == false)
+		while (std::atomic_compare_exchange_weak(&_head, &node->next, node) == false)
 			//_head가 노드->넥스트랑 같을 때, _head가 node로 바뀌게 된다
-		{ }
+		{
+		}
 
 	}
 
@@ -88,11 +90,12 @@ public:
 		//그냥 불러오면 안되고 atomic하게 불러와야함..-> shared_ptr은 자체적으로 카운팅을 하기 때문이다.
 
 		while (oldHead && std::atomic_compare_exchange_weak(&_head, &oldHead, oldHead->next) == false)
-		{ }
+		{
+		}
 
 		if (oldHead == nullptr)
 			return shared_ptr<T>();
-		
+
 		return oldHead->data;
 
 	}
@@ -198,7 +201,7 @@ public:
 			ChainPendingNode(oldHead);
 			--_popCount;
 		}
-	}
+}
 #endif // POPCOUNT
 private:
 	shared_ptr<Node> _head;
@@ -209,4 +212,107 @@ private:
 	atomic<Node*> _pendingList; //삭제되어야할 노드들의 첫번째 노드 (나머지는 타고타고가서 삭제가능)  
 #endif // POPCOUNT
 
+};
+#endif // SHARED
+
+template<typename T>
+class LockFreeStack
+{
+	struct Node;
+
+	struct CountedNodePtr
+	{
+		int32 externalCount = 0; //번호표, 늘어나기만 할것임.
+		Node* ptr = nullptr;
+	};
+
+	struct Node
+	{
+		Node(const T& value) : data(make_shared<T>(value))
+		{}
+		shared_ptr<T> data;
+		atomic<int32> internalCount = 0;
+		CountedNodePtr next;
+	};
+
+public:
+
+	void Push(const T& value)
+	{
+		//경합이 일어나지 않는 부분
+		CountedNodePtr node;
+		node.ptr = new Node(value);
+		node.externalCount = 1;
+
+		//이 이후부터는 멀티 쓰레드 환경을 잘 고려해야함.
+		node.ptr->next = _head;
+		while(_head.compare_exchange_weak(node.ptr->next,node) ==  false)
+		{ }
+	}
+
+	shared_ptr<T> TryPop()
+	{
+		CountedNodePtr oldHead = _head;
+
+		while (true)
+		{
+			//# 1차 경합.
+			//참조권 획득 =  번호표 뽑기(externalCount 를 현 시점에서 +1한 아이가 이김)
+			IncreaseHeadCount(oldHead);
+			//최소한 externalCount >= 2 , 이 node는 삭제하면 안되구, 안전하게 접근할 수 있는 상태이다
+
+			Node* ptr = oldHead.ptr;
+			//데이터 체크
+			if (ptr == nullptr)
+				return shared_ptr<T>();
+
+			// # 2차 경합
+			// 소유권 획득 (head를 ptr-> next로 바꿔치기 한 아이가 이김)
+			if (_head.compare_exchange_strong(oldHead, ptr->next))
+			{
+				shared_ptr<T> res;
+				res.swap(ptr->data);
+
+				// # 3차 경합
+				// Node 삭제 경합
+
+				//external : 1 -> 2(나 +1) -> 2+@ (나 +1 , 다른 두 곳에서 참조권획득 +@)
+				//internal : 2-> 1-> 0
+
+				const int32 countincrease = oldHead.externalCount - 2;
+
+				//fetch_add는 더하기 이전의 값을 뱉어줌.
+				//나말고 다른 사람이 있는지 확인하기
+				if (ptr->internalCount.fetch_add(countincrease) == -countincrease)
+					delete ptr;
+
+				//이전의 intercount가 다르다면 값만 뱉어주고 삭제는 하지 않는다(다른 사람이 참조권을 통해 보고있다는 뜻이므로)
+				return res;
+			}
+			//1씩 줄여나갈 것인데, 그전에 1이었던 친구를 마지막으로 ptr을 삭제해야한다.
+			else if(ptr->internalCount.fetch_sub(1) == 1)
+			{
+				delete ptr;
+			}
+
+		}
+	}
+private:
+	void IncreaseHeadCount(CountedNodePtr& oldCounter)
+	{
+		while (true)
+		{
+			CountedNodePtr newCounter = oldCounter;
+			newCounter.externalCount++;
+
+			if (_head.compare_exchange_strong(oldCounter, newCounter))
+			{
+				oldCounter.externalCount = newCounter.externalCount;
+				break;
+			}
+		}
+	}
+
+private:
+	atomic<CountedNodePtr> _head;
 };

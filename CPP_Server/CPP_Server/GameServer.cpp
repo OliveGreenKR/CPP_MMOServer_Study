@@ -20,6 +20,8 @@ using namespace std;
 LockQueue<int32> q;
 LockFreeStack<int32> s;
 
+#define SHARED
+
 #ifdef POPCOUNT
 void Push()
 {
@@ -40,6 +42,7 @@ void Pop()
 }
 #endif 
 
+#ifdef SHARED
 void Push()
 {
 	while (true)
@@ -57,6 +60,8 @@ void Pop()
 			cout << (*data) << endl;
 	}
 }
+#endif // SHARED
+
 
 
 int main()
@@ -67,4 +72,5 @@ int main()
 	t1.join();
 	t2.join();
 	
+
 }
