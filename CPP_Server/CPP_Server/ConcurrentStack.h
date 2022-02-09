@@ -56,7 +56,8 @@ class LockFreeStack
 {
 	struct Node
 	{
-		Node(const T& value) :  data(value){}
+		Node(const T& value) : data(value), next(nullptr) 
+		{}
 
 		T data;
 		Node* next;
@@ -64,36 +65,24 @@ class LockFreeStack
 
 public:
 
-	//새노드를 만들고
-	//새노드이 next =  기존 헤드
-	//헤드 =  기존 노드
+	
 	void Push(const T& value)
 	{
 		Node* node = new Node(value);
-		node->next = _head;	//이 단계에서부터 멀티스레드 환경에서 문제가 생길 수 있음
-							//head는 누구나 접근 가능 중간에 헤드값이 바뀔 수 있음.
+		node->next = _head;	
 
 		while (_head.compare_exchange_weak(node->next, node) == false)
 		{
-			//head가 node->next일때, head는 node가 된다.
-			//실패(false)하면 계속 시도
+
 		}
 
 		_head = node;
 	}
 
-	/*헤드의 데이터를 읽고 삭제하는 것이 목표
-	 * 1.기존의 헤드의 데이터를 읽는다
-	 * 2. head->next를 읽는다.
-	 * 3. head =  head->next
-	 * 4. 기존 head 데이터 추출 후 반환
-	 * 5. 기존 노드 삭제
-	 * 
-	 * (시작부터 head에 접근하기 때문에 복잡하다, head는 누구나 접근할 수 있기 때문...)
-	 */
 	bool TryPop(T& value)
 	{
 		Node* oldHead = _head;
+		++_popCount;
 		
 		//oldHead가 nullptr일때도 체크를 해야한다.
 
@@ -102,18 +91,89 @@ public:
 
 		if (oldHead == nullptr)
 		{
+			--_popCount; 
 			return false;
 		}
 		
 		value = oldHead->data;
 
-		
-		//만약 이렇게 delete를 해버리면, 기존의 oldHead를 참고하던 스레드에 문제가 생긴다!!
-		//C#이나 Java처럼 GC가 있으면 (메모리 삭제를 아무도 참고하지 않으면 지워주는것)사실 여기서 끝나는 것...
 		//delete oldHead;  
-
+		TryDelete(oldHead);
 		return true;
 	 }
+
+
+
+	static void DeleteNodes(Node* node)
+	{
+		while (node)
+		{
+			Node* next = node->next;
+			delete node;
+			node = next;
+		}
+	}
+
+	void ChainPendingList(Node* first, Node* last)
+	{
+		last->next = _pendingList;
+
+		while(_pendingList.compare_exchange_weak(last->next,first) ==  false)
+		{
+			//이어붙이고 처음을 _pendingList로 지정해주는것을 atomic하게 해주기 위함 
+		}
+
+	}
+	
+	void ChainPendingList(Node* node)
+	{
+		Node* last = node;
+		while (last->next)
+			last = last->next;
+
+		ChainPendingList(node, last);
+	}
+
+	void ChainPendingNode(Node* node)
+	{
+		ChainPendingList(node, node);
+	}
+
+	void TryDelete(Node* oldHead)
+	{
+		//popcount 체크
+		if (_popCount == 1)
+		{
+			//나 혼자다->delete OldHead 가능
+
+			//삭제가 가능하기 때문에 , 삭제예약된 다른 데이터들도 삭제 해봐야한다.
+			Node* node = _pendingList.exchange(nullptr);
+			// 기존의 pendingList는 Nullptr이 되고, node가 받아온 형태
+			
+			if (--_popCount == 0)//_popcount는 atomic클래스로 묶여서 연산이 아토믹하게 이뤄진다.
+			{
+				//끼어든 아이가 없으니 삭제를 진행해도 된다
+				//이 이후에는 끼어들어도 데이터는 분리해 두었으니 상관이 없다.
+				DeleteNodes(node);
+			}
+			else if(node)
+			{
+				//누가 끼어들었으니 다시 가져다 놓자
+				ChainPendingNode(node);
+			}
+			//데이터 삭제
+			delete oldHead;
+		}
+		else
+		{
+			//누가있네? ->pendinglist에 추가
+			ChainPendingNode(oldHead);
+			--_popCount;
+		}
+	}
+
 private:
 	atomic<Node*> _head;
+	atomic<uint32> _popCount = 0;
+	atomic<Node*> _pendingList; //삭제되어야할 노드들의 첫번째 노드 (나머지는 타고타고가서 삭제가능)
 };
