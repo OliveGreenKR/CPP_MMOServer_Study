@@ -11,37 +11,36 @@ using namespace std;
 
 #include <Windows.h>
 
-atomic<bool> ready;
-int32 value;
 
-void Producer()
+thread_local int32 LThreadid = 0;
+
+void ThreadMain(int32 threadid)
 {
-	value = 10;
+	LThreadid = threadid;
 
-	ready.store(true);
+	while (true)
+	{
+		cout << "Hi!, I am Thread" << LThreadid << endl;
+		this_thread::sleep_for(1s);
+	}
 
-	::atomic_thread_fence(memory_order::memory_order_release);
-	//-----------------release로 인한 절취선------------
 }
-
-void Comsumer()
-{
-	//---------------acquire 절취선 -------------
-	::atomic_thread_fence(memory_order::memory_order_acquire);
-	while (ready.load() == false)
-		;
-	cout << value << endl;
-}
-
 
 int main()
 {
-	ready = false;
-	value = 0;
-	thread t1(Producer);
-	thread t2(Comsumer);
+	vector<thread> threads;
 
-	t1.join();
-	t2.join();
+	for (int i = 0; i < 10; i++)
+	{
+		threads.push_back(thread(ThreadMain, i));
+	}
+
+	for (thread& t : threads)
+	{
+		if(t.joinable())
+		{
+			t.join();
+		}
+	}
 
 }
