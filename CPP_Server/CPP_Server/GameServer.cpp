@@ -9,38 +9,44 @@ using namespace std;
 #include <mutex>
 #include <future>
 
+#include <queue>
+#include <stack>
+
 #include <Windows.h>
 
+#include "ConcurrentQueue.h"
+#include "ConcurrentStack.h"
 
-thread_local int32 LThreadid = 0;
+LockQueue<int32> q;
+LockStack<int32> s;
 
-void ThreadMain(int32 threadid)
+void Push()
 {
-	LThreadid = threadid;
-
 	while (true)
 	{
-		cout << "Hi!, I am Thread" << LThreadid << endl;
-		this_thread::sleep_for(1s);
-	}
+		int32 value = rand() % 100;
+		q.Push(value);
 
+		this_thread::sleep_for(10ms);
+	}
 }
+void Pop()
+{
+	while (true)
+	{
+		int32 data = 0;
+		q.WaitPop(data);
+		cout << data << endl;
+	}
+}
+
 
 int main()
 {
-	vector<thread> threads;
-
-	for (int i = 0; i < 10; i++)
-	{
-		threads.push_back(thread(ThreadMain, i));
-	}
-
-	for (thread& t : threads)
-	{
-		if(t.joinable())
-		{
-			t.join();
-		}
-	}
-
+	thread t1(Push);
+	thread t2(Pop);
+	
+	t1.join();
+	t2.join();
+	
 }
