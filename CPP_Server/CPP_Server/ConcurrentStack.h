@@ -1,6 +1,5 @@
 #pragma once
 #include <mutex>
-#include <atomic>
 
 template<typename T>
 class LockStack
@@ -56,20 +55,54 @@ class LockFreeStack
 {
 	struct Node
 	{
-		Node(const T& value) : data(value), next(nullptr) 
+		Node(const T& value) : data(make_shared<T>(value)), next(nullptr) 
+		{}
+		shared_ptr<T> data;
+		shared_ptr<Node> next;
+
+#ifdef POPCOUNT
+		Node(const T& value) : data(value), next(nullptr)
 		{}
 
 		T data;
 		Node* next;
+#endif // POPCOUNT
 	};
 
 public:
 
-	
+	void Push(const T& value)
+	{
+		shared_ptr<Node> node = make_shared<Node>(value);
+
+		node->next = std::atomic_load(&_head);
+		while(std::atomic_compare_exchange_weak(&_head, &node->next, node) == false)
+			//_head가 노드->넥스트랑 같을 때, _head가 node로 바뀌게 된다
+		{ }
+
+	}
+
+	shared_ptr<T> TryPop()
+	{
+		shared_ptr<Node> oldHead = std::atomic_load(&_head);
+		//그냥 불러오면 안되고 atomic하게 불러와야함..-> shared_ptr은 자체적으로 카운팅을 하기 때문이다.
+
+		while (oldHead && std::atomic_compare_exchange_weak(&_head, &oldHead, oldHead->next) == false)
+		{ }
+
+		if (oldHead == nullptr)
+			return shared_ptr<T>();
+		
+		return oldHead->data;
+
+	}
+
+
+#ifdef POPCOUNT
 	void Push(const T& value)
 	{
 		Node* node = new Node(value);
-		node->next = _head;	
+		node->next = _head;
 
 		while (_head.compare_exchange_weak(node->next, node) == false)
 		{
@@ -83,27 +116,22 @@ public:
 	{
 		Node* oldHead = _head;
 		++_popCount;
-		
-		//oldHead가 nullptr일때도 체크를 해야한다.
-
-		while(oldHead && _head.compare_exchange_weak(oldHead,oldHead->next) == false)
-		{ }
+		while (oldHead && _head.compare_exchange_weak(oldHead, oldHead->next) == false)
+		{
+		}
 
 		if (oldHead == nullptr)
 		{
-			--_popCount; 
+			--_popCount;
 			return false;
 		}
-		
+
 		value = oldHead->data;
 
 		//delete oldHead;  
 		TryDelete(oldHead);
 		return true;
-	 }
-
-
-
+	}
 	static void DeleteNodes(Node* node)
 	{
 		while (node)
@@ -118,13 +146,13 @@ public:
 	{
 		last->next = _pendingList;
 
-		while(_pendingList.compare_exchange_weak(last->next,first) ==  false)
+		while (_pendingList.compare_exchange_weak(last->next, first) == false)
 		{
 			//이어붙이고 처음을 _pendingList로 지정해주는것을 atomic하게 해주기 위함 
 		}
 
 	}
-	
+
 	void ChainPendingList(Node* node)
 	{
 		Node* last = node;
@@ -149,14 +177,14 @@ public:
 			//삭제가 가능하기 때문에 , 삭제예약된 다른 데이터들도 삭제 해봐야한다.
 			Node* node = _pendingList.exchange(nullptr);
 			// 기존의 pendingList는 Nullptr이 되고, node가 받아온 형태
-			
+
 			if (--_popCount == 0)//_popcount는 atomic클래스로 묶여서 연산이 아토믹하게 이뤄진다.
 			{
 				//끼어든 아이가 없으니 삭제를 진행해도 된다
 				//이 이후에는 끼어들어도 데이터는 분리해 두었으니 상관이 없다.
 				DeleteNodes(node);
 			}
-			else if(node)
+			else if (node)
 			{
 				//누가 끼어들었으니 다시 가져다 놓자
 				ChainPendingNode(node);
@@ -171,9 +199,14 @@ public:
 			--_popCount;
 		}
 	}
-
+#endif // POPCOUNT
 private:
+	shared_ptr<Node> _head;
+
+#ifdef POPCOUNT
 	atomic<Node*> _head;
 	atomic<uint32> _popCount = 0;
-	atomic<Node*> _pendingList; //삭제되어야할 노드들의 첫번째 노드 (나머지는 타고타고가서 삭제가능)
+	atomic<Node*> _pendingList; //삭제되어야할 노드들의 첫번째 노드 (나머지는 타고타고가서 삭제가능)  
+#endif // POPCOUNT
+
 };

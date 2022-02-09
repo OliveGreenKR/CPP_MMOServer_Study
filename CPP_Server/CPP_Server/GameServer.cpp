@@ -20,6 +20,7 @@ using namespace std;
 LockQueue<int32> q;
 LockFreeStack<int32> s;
 
+#ifdef POPCOUNT
 void Push()
 {
 	while (true)
@@ -35,6 +36,25 @@ void Pop()
 		int32 data = 0;
 		s.TryPop(data);
 		cout << data << endl;
+	}
+}
+#endif 
+
+void Push()
+{
+	while (true)
+	{
+		int32 value = rand() % 100;
+		s.Push(value);
+	}
+}
+void Pop()
+{
+	while (true)
+	{
+		auto data = s.TryPop();
+		if (data != nullptr)
+			cout << (*data) << endl;
 	}
 }
 
