@@ -38,6 +38,7 @@ public:
 	void TestPop()
 	{
 		WRITE_LOCK;
+
 		if (_queue.empty()==false)
 			_queue.pop();
 	}
