@@ -80,7 +80,7 @@ int main()
 	// nmullptr 또는 다른 ptr로 밀어주면 자연스럽게 
 	//refcount가 동작하면서 shared_ptr기능을 할 수 있게 되었다.
 
-	while (true)
+	while (missile)
 	{
 		if (missile)
 		{
