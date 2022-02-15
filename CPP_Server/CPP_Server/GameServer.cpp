@@ -12,62 +12,88 @@ using namespace std;
 #include <stack>
 #include <Windows.h>
 #include "ThreadManager.h"
+#include "RefCounting.h"
 
-
-//소수 구하기 문제
-extern atomic<int> cnt = 0;
-extern atomic<int64> Ticks = 0;
-
-void CntPrime(int start, int end)
+class Wraight : public RefCountable
 {
-	auto st = GetTickCount64();
+public:
+	int _hp = 150;
+	int _posX = 0;
+	int _posY = 0;
+};
 
-	if (end < start)
-		return;
-	if (start < 2)
-		start = 2;
+using WraightRef = TSharedPtr<Wraight>;
 
-	for (int n = start; n < end; n++)
+class Missile : public RefCountable
+{
+public:
+	void SetTarget(WraightRef target)
 	{
-		for (int i = 2; i * i <= n; i++)
-		{
-			if (n % i == 0)
-			{
-				//lock_guard<mutex> _lock(m);
-				cnt.fetch_sub(1);
-				break;
-			}
-		}
-		//lock_guard<mutex> _lock(m);
-		cnt.fetch_add(1);
+		_target = target;
+		//_target->AddRef();
 	}
-	auto fin = GetTickCount64();
-	Ticks.fetch_add(fin - st);
-}
+
+	bool Update()
+	{
+		if (_target == nullptr)
+			return true;
+
+		int posX = _target->_posX;
+		int posY = _target->_posY;
+		// TODO ..쫒아가기
+
+		if (_target->_hp == 0)
+		{
+			//_target->ReleaseRef();
+			_target = nullptr;
+			return true;
+		}
+		return false;
+	}
+
+public:
+	WraightRef _target = nullptr;
+};
+
+using MissileRef = TSharedPtr<Missile>;
 
 int main()
 {
-	int N = 100'00;
-	
-	vector<thread> threads;
+	WraightRef wraight(new Wraight()); //wraight ref =2
+	//제작버전에서는 초기시에는 수동으로 Ref를 낮추어야함
+	wraight->ReleaseRef();
+	MissileRef missile(new Missile());
+	missile->ReleaseRef();
 
-	int coreCount = thread::hardware_concurrency();
-	int jobCount = (N / coreCount) + 1; //코어만큼 N나누기
 
-	for (int i = 0; i < coreCount; i++)
+	missile->SetTarget(wraight);
+
+	//레이스가 체력이 0이됨.
+	wraight->_hp = 0;
+
+	//delete wraight;
+	//wraight->ReleaseRef(); 
+	wraight = nullptr;
+	//이제 위에처럼만 해주어도, nullptr로 sharedPtr이 생성되면서.(복사생성자)
+	//기존의 것은 Release하고 다시 nullptr로 생성하게된다 (복사연산자 오버로딩 확인)
+
+	// nmullptr 또는 다른 ptr로 밀어주면 자연스럽게 
+	//refcount가 동작하면서 shared_ptr기능을 할 수 있게 되었다.
+
+	while (true)
 	{
-		int start = (i * jobCount) + 1;
-		int end = min(N, (i + 1) * jobCount);
-
-		threads.push_back(thread(CntPrime, start, end));
+		if (missile)
+		{
+			if (missile->Update()) { 
+				//missile->ReleaseRef();
+				missile = nullptr;
+			}
+		}
 	}
+								
+	//delete missile;
+	/*missile->ReleaseRef();*/
+	missile = nullptr;
 
-	for (thread& t : threads)
-	{
-		t.join();
-	}
-
-	cout << cnt << endl;
-	cout << Ticks << "ms" << endl;
 }
 
