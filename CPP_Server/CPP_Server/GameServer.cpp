@@ -14,86 +14,49 @@ using namespace std;
 #include "ThreadManager.h"
 #include "RefCounting.h"
 
-class Wraight : public RefCountable
+using KnightRef = TSharedPtr<class Knight>;
+using InventoryRef = TSharedPtr<class Inventory>;
+
+class Knight 
 {
 public:
-	int _hp = 150;
-	int _posX = 0;
-	int _posY = 0;
+	Knight() 
+	{
+		cout << "Knight()\n";
+	}
+	~Knight() { cout << "~Knight()\n"; }
+
+	KnightRef _target = nullptr;
+	InventoryRef _invnetory = nullptr;
 };
 
-using WraightRef = TSharedPtr<Wraight>;
-
-class Missile : public RefCountable
+class Inventory
 {
 public:
-	void SetTarget(WraightRef target)
-	{
-		_target = target;
-		//_target->AddRef();
-	}
-
-	bool Update()
-	{
-		if (_target == nullptr)
-			return true;
-
-		int posX = _target->_posX;
-		int posY = _target->_posY;
-		// TODO ..쫒아가기
-
-		if (_target->_hp == 0)
-		{
-			//_target->ReleaseRef();
-			_target = nullptr;
-			return true;
-		}
-		return false;
-	}
+	Inventory(KnightRef knight) : _master(**knight), __master(make_shared<Knight>(knight))
+	{}
 
 public:
-	WraightRef _target = nullptr;
+	Knight& _master;
+	weak_ptr<Knight> __master;
 };
-
-using MissileRef = TSharedPtr<Missile>;
 
 int main()
 {
-	WraightRef wraight(new Wraight()); //wraight ref =2
-	//제작버전에서는 초기시에는 수동으로 Ref를 낮추어야함
-	wraight->ReleaseRef();
-	MissileRef missile(new Missile());
-	missile->ReleaseRef();
+	
+	//[Knkght] [RefCOunt] ==> 두번에 나누어 할당
+	shared_ptr<Knight> spr(new Knight());
+
+	// [knight | RefCOunt ]  ==> 할당 1번 
+	shared_ptr<Knight> spr = make_shared<Knight>();
+	weak_ptr<Knight> wpr = spr;
+
+	//weak_Ptr은 사용하기 전에 만료여부를 확인해야함
+	bool expired = wpr.expired();
+	//귀찮다면 다시 shared_ptr로 캐스팅 할 수 있음.
+	shared_ptr<Knight> spr2 = wpr.lock(); //만약 expired된 상태면  nullptr
 
 
-	missile->SetTarget(wraight);
-
-	//레이스가 체력이 0이됨.
-	wraight->_hp = 0;
-
-	//delete wraight;
-	//wraight->ReleaseRef(); 
-	wraight = nullptr;
-	//이제 위에처럼만 해주어도, nullptr로 sharedPtr이 생성되면서.(복사생성자)
-	//기존의 것은 Release하고 다시 nullptr로 생성하게된다 (복사연산자 오버로딩 확인)
-
-	// nmullptr 또는 다른 ptr로 밀어주면 자연스럽게 
-	//refcount가 동작하면서 shared_ptr기능을 할 수 있게 되었다.
-
-	while (missile)
-	{
-		if (missile)
-		{
-			if (missile->Update()) { 
-				//missile->ReleaseRef();
-				missile = nullptr;
-			}
-		}
-	}
-								
-	//delete missile;
-	/*missile->ReleaseRef();*/
-	missile = nullptr;
 
 }
 

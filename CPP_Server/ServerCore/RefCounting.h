@@ -79,8 +79,8 @@ public:
 	bool		operator!=(T* rhs) { return _ptr != rhs; }
 	bool		operator<(const TSharedPtr& rhs) { return _ptr < rhs._ptr; }
 	//포인터연산
-	T&			operator*() { return *_ptr; }
-	const T&	operator*() const { return *_ptr; }
+	T*			operator*() { return _ptr; }
+	const T*	operator*() const { return _ptr; }
 				operator T* () const { return _ptr; } //캐스팅?
 	T*			operator ->() { return _ptr; }
 	const T*	operator->() const { return _ptr; }
