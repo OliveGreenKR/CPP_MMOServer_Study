@@ -13,9 +13,7 @@ using namespace std;
 #include <Windows.h>
 #include "ThreadManager.h"
 #include "RefCounting.h"
-
-using KnightRef = TSharedPtr<class Knight>;
-using InventoryRef = TSharedPtr<class Inventory>;
+#include "Memory.h"
 
 class Knight 
 {
@@ -24,39 +22,51 @@ public:
 	{
 		cout << "Knight()\n";
 	}
+
+	Knight(int hp) : _hp(hp)
+	{
+		cout << "Knight(hp)\n";
+	}
+
 	~Knight() { cout << "~Knight()\n"; }
 
-	KnightRef _target = nullptr;
-	InventoryRef _invnetory = nullptr;
+	//static void* operator new(size_t size)
+	//{
+	//	cout << "new!" << size << endl;
+	//	void* ptr = ::malloc(size);
+	//	return ptr;
+	//}
+
+	//static void operator delete(void* ptr)
+	//{
+	//	cout << "delete!" << endl;
+	//	::free(ptr);
+	//}
+
+public:
+	int _hp = 100;
+	int _mp = 10;
 };
 
-class Inventory
+
+void* operator new[](size_t size)
 {
-public:
-	Inventory(KnightRef knight) : _master(**knight), __master(make_shared<Knight>(knight))
-	{}
+	cout << "new[]!" << size << endl;
+	void* ptr = ::malloc(size);
+	return ptr;
+}
 
-public:
-	Knight& _master;
-	weak_ptr<Knight> __master;
-};
+void operator delete[](void* ptr)
+{
+	cout << "delete!" << endl;
+	::free(ptr);
+}
+
 
 int main()
 {
-	
-	//[Knkght] [RefCOunt] ==> 두번에 나누어 할당
-	shared_ptr<Knight> spr(new Knight());
+	Knight* k1 = xnew<Knight>(10);
 
-	// [knight | RefCOunt ]  ==> 할당 1번 
-	shared_ptr<Knight> spr = make_shared<Knight>();
-	weak_ptr<Knight> wpr = spr;
-
-	//weak_Ptr은 사용하기 전에 만료여부를 확인해야함
-	bool expired = wpr.expired();
-	//귀찮다면 다시 shared_ptr로 캐스팅 할 수 있음.
-	shared_ptr<Knight> spr2 = wpr.lock(); //만약 expired된 상태면  nullptr
-
-
-
+	xdelete(k1);
 }
 

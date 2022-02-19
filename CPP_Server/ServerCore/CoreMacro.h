@@ -12,6 +12,19 @@
 #define WRITE_LOCK				WRITE_LOCK_IDX(0)
 
 /*-----------
+	Memory
+-------------*/
+
+#ifdef _DEBUG
+#define XAlloc(size) BaseAllocator::Alloc(size)
+#define XRelease(ptr) BaseAllocator::Release(ptr)
+#else
+#define Xalloc(size) BaseAllocator::Alloc(size)
+#define XRelease(ptr) BaseAllocator::Release(ptr)
+#endif
+
+
+/*-----------
 	Crash
 -------------*/
 
