@@ -15,7 +15,14 @@ using namespace std;
 #include "RefCounting.h"
 #include "Memory.h"
 
-class Knight 
+class Player
+{
+public:
+	Player() { cout << "Player()\n"; }
+	~Player() { cout << "~Player()\n"; }
+};
+
+class Knight : public Player
 {
 public:
 	Knight() 
@@ -37,7 +44,9 @@ public:
 
 int main()
 {
-	Knight* k1 = xnew<Knight>(10);
+	Knight* k1 = (Knight*)xnew<Player>();
+
+	//k1->_hp = 100;
 
 	xdelete(k1);
 }
