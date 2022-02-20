@@ -30,38 +30,10 @@ public:
 
 	~Knight() { cout << "~Knight()\n"; }
 
-	//static void* operator new(size_t size)
-	//{
-	//	cout << "new!" << size << endl;
-	//	void* ptr = ::malloc(size);
-	//	return ptr;
-	//}
-
-	//static void operator delete(void* ptr)
-	//{
-	//	cout << "delete!" << endl;
-	//	::free(ptr);
-	//}
-
 public:
 	int _hp = 100;
 	int _mp = 10;
 };
-
-
-void* operator new[](size_t size)
-{
-	cout << "new[]!" << size << endl;
-	void* ptr = ::malloc(size);
-	return ptr;
-}
-
-void operator delete[](void* ptr)
-{
-	cout << "delete!" << endl;
-	::free(ptr);
-}
-
 
 int main()
 {
