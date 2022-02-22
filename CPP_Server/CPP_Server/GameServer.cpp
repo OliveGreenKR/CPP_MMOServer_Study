@@ -14,6 +14,7 @@ using namespace std;
 #include "ThreadManager.h"
 #include "RefCounting.h"
 #include "Memory.h"
+#include "Allocator.h"
 
 class Player
 {
@@ -44,10 +45,6 @@ public:
 
 int main()
 {
-	Knight* k1 = (Knight*)xnew<Player>();
-
-	//k1->_hp = 100;
-
-	xdelete(k1);
+	
 }
 
