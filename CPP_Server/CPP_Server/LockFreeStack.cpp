@@ -32,7 +32,7 @@ SListEntry* PopEntrySList(SListHeader* header)
 }
 #endif // FIRST
 
-#ifdef SECOND abaproblem
+#ifdef SECOND ABAproblem
 /*___________________________
 2차 시도
 -----------------------------*/
@@ -63,4 +63,61 @@ SListEntry* PopEntrySList(SListHeader* header)
 
 	return expected;
 }
-#endif // SECOND abaproblem
+#endif // SECOND 
+
+/*___________________________
+		3차 시도
+-----------------------------*/
+void InitializeHeader(SListHeader* header)
+{
+	header->alignment = 0;
+	header->region = 0;
+}
+void PushEntrySList(SListHeader* header, SListEntry* entry)
+{
+	SListHeader expected = {};
+	SListHeader desired = {};
+
+	//하위 4비트는 0이므로(16바이트정렬) 60비트만으로 주소표현가능
+	desired.HeaderX64.next = (((uint64)entry) >> 4); 
+
+	while (true)
+	{
+		expected = *header;
+
+		//중간에 데이터가 변경될수 잇음
+		//==> region(데이터주소)와 alignment(카운터)가 모두 같아야 SWAP
+
+		entry->next = (SListEntry*)(((uint64)expected.HeaderX64.next) << 4); //entry->next = header->next
+		desired.HeaderX64.depth = expected.HeaderX64.depth + 1;
+		desired.HeaderX64.sequence = expected.HeaderX64.sequence + 1;
+		//dest, desired1,desired2, expeced
+		if (InterlockedCompareExchange128((int64*)header, desired.region, desired.alignment, (int64*)&expected) == 1)//변환성공
+			break;
+	}
+
+}
+
+SListEntry* PopEntrySList(SListHeader* header)
+{
+	SListHeader expected = {};
+	SListHeader desired = {};
+	SListEntry* entry = nullptr;
+
+	while (true)
+	{
+		expected = *header;
+		entry = (SListEntry*)(((uint64)expected.HeaderX64.next) << 4);  //entry = header->next
+		if (entry == nullptr)
+			break;
+		//Use-After_Free 가능
+		desired.HeaderX64.next = (((uint64)entry->next) >> 4);
+		desired.HeaderX64.depth = expected.HeaderX64.depth - 1;
+		desired.HeaderX64.sequence = expected.HeaderX64.sequence + 1;
+
+		if (::InterlockedCompareExchange128((int64*)header, desired.region, desired.alignment, (int64*)&expected) == 1)
+			break;
+	}
+
+	return entry;
+}
