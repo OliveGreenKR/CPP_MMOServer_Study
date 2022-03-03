@@ -1,10 +1,15 @@
 #pragma once
 
-/*---------------------
-	Memory Header
-----------------------*/
+enum
+{
+	SLIST_ALIGNMENT = 16
+};
 
-struct MemoryHeader//편리한 관리를 위한 메모리 헤더 (데이터 크기 등등..)
+/*---------------------
+	Memory Header	//편리한 관리를 위한 메모리 헤더 (데이터 크기 등등..)
+----------------------*/
+DECLSPEC_ALIGN(SLIST_ALIGNMENT)
+struct MemoryHeader  : public SLIST_ENTRY
 {
 public:
 	//[Header][Data]
@@ -31,7 +36,7 @@ public:
 /*---------------------
 	Memory Pool            
 ----------------------*/
-
+DECLSPEC_ALIGN(SLIST_ALIGNMENT)
 class MemoryPool
 {
 public:
@@ -42,10 +47,10 @@ public:
 	MemoryHeader*	Pop();
 
 private:
+	//헤더가 제일먼저 위치해야함
+	SLIST_HEADER _header;
 	int32 _allocSize = 0;
 	atomic<int32> _allocCount = 0; //메모리 풀에서 뱉어준 메모리의 개수(디버깅용)
 
-	USE_LOCK;
-	queue<MemoryHeader*> _queue;
 };
 

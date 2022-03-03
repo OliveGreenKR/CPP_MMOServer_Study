@@ -62,7 +62,7 @@ void* MemoryManager::Allocate(int32 size)
 
 	if (allocsize > MAX_ALLOC_SIZE)//너무 크다 -> 일반할당
 	{
-		header = reinterpret_cast<MemoryHeader*>(::malloc(allocsize));
+		header = reinterpret_cast<MemoryHeader*>(::_aligned_malloc(allocsize,SLIST_ALIGNMENT));
 	}
 	else
 	{
@@ -80,7 +80,7 @@ void MemoryManager::Release(void* ptr)
 
 	if (allocsize > MAX_ALLOC_SIZE)
 	{
-		::free(header);
+		::_aligned_free(header);
 	}
 	else
 	{

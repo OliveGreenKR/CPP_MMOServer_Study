@@ -7,53 +7,41 @@
 
 MemoryPool::MemoryPool(int32 allocsize) : _allocSize(allocsize)
 {
+	::InitializeSListHead(&_header);
 }
 
 MemoryPool::~MemoryPool()
 {
-	while (_queue.empty() == false)
+	while (MemoryHeader* memory = static_cast<MemoryHeader*>(::InterlockedPopEntrySList(&_header)))
 	{
-		MemoryHeader* header = _queue.front();
-		_queue.pop();
-		::free(header);
+		::_aligned_free(memory);
 	}
 }
 
 void MemoryPool::Push(MemoryHeader* ptr)
 {
-	WRITE_LOCK;
-	ptr->allocSize = 0; //사용중이 아니라는 표시로 활용
 	
-	_queue.push(ptr);//Pool에 메모리 반납
+	ptr->allocSize = 0; //사용중이 아니라는 표시로 활용
+	//Pool에 메모리 반납
+	::InterlockedPushEntrySList(&_header, static_cast<PSLIST_ENTRY>(ptr));
 
 	_allocCount.fetch_sub(1);
 }
 
 MemoryHeader* MemoryPool::Pop()
 {
-	MemoryHeader* header = nullptr;
+	MemoryHeader* memory = static_cast<MemoryHeader*>(::InterlockedPopEntrySList(&_header));
+
+	if (memory == nullptr)
 	{
-		WRITE_LOCK;
-		//Pool의 데이터 체크
-		if (_queue.empty() == false)
-		{
-			//있으면 꺼내오기
-			header = _queue.front();
-			_queue.pop();
-		}
-	}
-	
-	//만약 없으면? 새로할당(정책에 따라 선택하자)
-	if (header == nullptr)
-	{
-		header = reinterpret_cast<MemoryHeader*>(::malloc(_allocSize));
+		memory = reinterpret_cast<MemoryHeader*>(::_aligned_malloc(_allocSize,SLIST_ALIGNMENT));
 	}
 	else
 	{
-		ASSERT_CRASH(header->allocSize == 0);
+		ASSERT_CRASH(memory->allocSize == 0);
 	}
 
 	_allocCount.fetch_add(1);
 
-	return header;
+	return memory;
 }
