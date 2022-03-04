@@ -32,9 +32,9 @@ private:
 	XAllocator
 -----------------*/
 template<typename Type, typename ...Args>
-Type* xnew(Args&&... args) //오른값 참조가 아닌 '보편참조=전달참조'
+Type* xnew(Args&&... args) //현재 poolAllocator사용
 {
-	Type* memory = static_cast<Type*>(XAlloc(sizeof(Type)));
+	Type* memory = static_cast<Type*>(PoolAllocator::Alloc(sizeof(Type)));
 	//placement new
 	new(memory) Type(::forward<Args>(args)...);
 	return memory;
@@ -44,5 +44,11 @@ template<typename Type>
 void xdelete(Type* obj)
 {
 	obj->~Type();
-	XRelease(obj);
+	PoolAllocator::Release(obj);
+}
+
+template<typename Type>
+shared_ptr<Type> MakeShared()
+{
+	return shared_ptr<Type>{xnew<Type>(), xdelete<Type>}
 }

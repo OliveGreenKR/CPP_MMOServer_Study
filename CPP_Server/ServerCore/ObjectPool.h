@@ -9,8 +9,13 @@ public:
 	template<typename ...Args>
 	static Ty* Pop(Args&& ...args)
 	{
+#ifdef _STOMP
+		MemoryHeader* ptr = reinterpret_cast<MemoryHeader*>(StompAllocator::Alloc(s_allocSize));
+		Ty* memory = static_cast<Ty*>(MemoryHeader::AttachHeader(ptr, s_allocSize));
+#else
 		//attachheader로 헤더다음, 데이터의 시작주소를 반환
 		Ty* memory = static_cast<Ty*>(MemoryHeader::AttachHeader(s_pool.Pop(), s_allocSize));
+#endif
 		new(memory)Ty(::forward<Args>(args)...); //생성자의 인자도 넣어줄 수 있다.
 		return memory;
 	}
@@ -18,9 +23,12 @@ public:
 	static void Push(Ty* obj)
 	{
 		obj->~Ty(); //소멸자 호출
-
+#ifdef _STOMP
+		StompAllocator::Release(MemoryHeader::DetachHeader(obj));
+#else
 		// 헤더가들어갈, 헤더의 시작주소를 구하고, Pool에 넣어준다.
-		s_pool.Push(MemoryHeader::DetachHeader(obj)); 
+		s_pool.Push(MemoryHeader::DetachHeader(obj));
+#endif
 	}
 
 	static shared_ptr<Ty> MakeShared()

@@ -40,8 +40,10 @@ int main()
 		knights[i] = nullptr;
 	}
 
-	//멤버 함수 사용
+	//objpool
 	shared_ptr<Knight>sptr = ObjectPool<Knight>::MakeShared();
+	//memory pool
+	shared_ptr<Knight>sptr2 = MakeShared<Knight>();
 
 	for (int32 i = 0; i < 5; i++)
 	{

@@ -60,15 +60,19 @@ void* MemoryManager::Allocate(int32 size)
 	MemoryHeader* header = nullptr;
 	const int32 allocsize = size + sizeof(MemoryHeader);
 
+#ifdef _STOMP
+	header = reinterpret_cast<MemoryHeader*>(StompAllocator::Alloc(allocsize));
+#else
 	if (allocsize > MAX_ALLOC_SIZE)//너무 크다 -> 일반할당
 	{
-		header = reinterpret_cast<MemoryHeader*>(::_aligned_malloc(allocsize,SLIST_ALIGNMENT));
+		header = reinterpret_cast<MemoryHeader*>(::_aligned_malloc(allocsize, SLIST_ALIGNMENT));
 	}
 	else
 	{
 		///메모리 풀에서 꺼내오기.
 		header = _poolTable[allocsize]->Pop();
 	}
+#endif
 	return MemoryHeader::AttachHeader(header, allocsize); //데이터시작주소 반환
 }
 void MemoryManager::Release(void* ptr)
@@ -78,6 +82,9 @@ void MemoryManager::Release(void* ptr)
 	
 	ASSERT_CRASH(allocsize >0);
 
+#ifdef _STOMP
+	StompAllocator::Release(header);
+#else
 	if (allocsize > MAX_ALLOC_SIZE)
 	{
 		::_aligned_free(header);
@@ -86,6 +93,6 @@ void MemoryManager::Release(void* ptr)
 	{
 		_poolTable[allocsize]->Push(header);
 	}
-
+#endif
 }
 
