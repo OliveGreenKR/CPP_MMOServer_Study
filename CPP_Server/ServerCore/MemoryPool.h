@@ -50,7 +50,8 @@ private:
 	//헤더가 제일먼저 위치해야함
 	SLIST_HEADER _header;
 	int32 _allocSize = 0;
-	atomic<int32> _allocCount = 0; //메모리 풀에서 뱉어준 메모리의 개수(디버깅용)
+	atomic<int32> _useCount = 0; 
+	atomic<int32> _reserveCount = 0; 
 
 };
 
