@@ -14,7 +14,17 @@
 #include "Memory.h"
 #include "Allocator.h"
 
-class Knight
+class Player
+{
+public:
+
+	Player() {};
+	virtual ~Player() {};
+private:
+	int64 _id = 0;
+};
+
+class Knight : Player
 {
 public:
 	Knight() {};
@@ -29,21 +39,27 @@ public:
 	int64 _id = 0;
 };
 
+class Archer : Player
+{
+public:
+	int64 _hp = 0;
+};
+
+#include "TypeCast.h"
+
 int main()
 {
-	Knight* knights[100];
-	for (int32 i = 0; i < 100; i++)
-		knights[i] = ObjectPool<Knight>::Pop();
-	for (int32 i = 0; i < 100; i++)
-	{
-		ObjectPool<Knight>::Push(knights[i]);
-		knights[i] = nullptr;
-	}
 
-	//objpool
-	shared_ptr<Knight>sptr = ObjectPool<Knight>::MakeShared();
-	//memory pool
-	shared_ptr<Knight>sptr2 = MakeShared<Knight>();
+	using TL = TypeList<Monster, Knight, Archer>;
+	int32 len1 = Length<TL>::value; //3
+	TypeAt<TL, 2>::Result player; //archer선택됨
+
+	int32 knihgtidx = IndexOf<TL, Knight>::value; //1
+	int32 grbgidx = IndexOf<TL, Player>::value; //-1
+
+	Conversion<Knight, Player>::exists; // true -> 변환가능
+	Conversion<Player, Knight>::exists; // false -> 변환불가
+
 
 	for (int32 i = 0; i < 5; i++)
 	{
@@ -51,13 +67,6 @@ int main()
 			{
 				while (true)
 				{
-					Knight* knight = xnew<Knight>();
-
-					cout << knight->_hp << endl;
-
-					this_thread::sleep_for(10ns);
-
-					xdelete(knight);
 				}
 			});
 	}
