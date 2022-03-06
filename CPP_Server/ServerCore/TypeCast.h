@@ -51,7 +51,7 @@ struct TypeAt<TypeList<Head, Tail...>, 0>
 template<typename Head, typename...Tail, int32 index>
 struct TypeAt<TypeList<Head,Tail...>,index>
 {
-	using Result = typename TypeAt<TypeList<Tail...>,index -1 >::Result
+	using Result = typename TypeAt<TypeList<Tail...>, index - 1 >::Result;
 };
 
 #pragma endregion
@@ -109,10 +109,10 @@ public:
 
 #pragma region TypeCast
 
-template<typename V>
+template<int32 v>
 struct Int2Type
 {
-	enum { Value =  V};
+	enum { value =  v};
 };
 
 template<typename TL>
@@ -124,7 +124,7 @@ public:
 		length = Length<TL>::value
 	};
 
-	TypeCast()
+	TypeConversion()
 	{
 		MakeTable(Int2Type<0>(), Int2Type<0>());
 	}
@@ -140,7 +140,22 @@ public:
 		else
 			s_convert[i][j] = false;
 
-		MakeTable(Int2Type<i>(), Int2Type<j+1>());
+		MakeTable(Int2Type<i>(), Int2Type<j+1>()); //사실상 달라진 i와 j에 대한 새로운 클래스
+	}
+
+	template<int32 i>
+	static void  MakeTable(Int2Type<i>, Int2Type<length>)
+	{
+		MakeTable(Int2Type<i+1>(),Int2Type<0>());
+	}
+
+	template<int32 j>
+	static void  MakeTable(Int2Type<length>, Int2Type<j>) {};
+
+	static inline bool CanConvert(int32 from, int32 to)
+	{
+		static TypeConversion conversion;
+		return s_convert[from][to];
 	}
 
 public:
@@ -150,5 +165,54 @@ public:
 template <typename TL>
 bool TypeConversion<TL>::s_convert[length][length];
 
+template<typename To, typename From>
+To TypeCast(From* ptr)
+{
+	if (ptr == nullptr)
+		return nullptr;
+	using TL = typename From::TL;
+	if (TypeConversion<TL>::CanConvert(ptr->_typeid, IndexOf<TL, remove_pointer_t<To>>::value))
+		return static_cast<To>(ptr);
+
+	return nullptr;
+}
+
+template<typename To, typename From>
+shared_ptr<To> TypeCast(shared_ptr<From> ptr)
+{
+	if (ptr == nullptr)
+		return nullptr;
+	using TL = typename From::TL;
+	if (TypeConversion<TL>::CanConvert(ptr->_typeid, IndexOf<TL, remove_pointer_t<To>>::value))
+		return static_pointer_cast<To>(ptr);
+
+	return nullptr;
+}
+
+
+template<typename To, typename From>
+bool CanCast(From* ptr)
+{
+	if (ptr == nullptr)
+		return false;
+
+	using TL = typename From::TL;
+
+	return TypeConversion<TL>::CanConvert(ptr->_typeid, IndexOf<TL, remove_pointer_t<To>>::value);
+}
+
+template<typename To, typename From>
+bool CanCast(shared_ptr<From> ptr)
+{
+	if (ptr == nullptr)
+		return false;
+
+	using TL = typename From::TL;
+
+	return TypeConversion<TL>::CanConvert(ptr->_typeid, IndexOf<TL, remove_pointer_t<To>>::value);
+}
 
 #pragma endregion
+
+#define DECLARE_TL			using TL = TL; int _typeid;
+#define INIT_TL(Type)		_typeid = IndexOf<TL,Type>::value;
