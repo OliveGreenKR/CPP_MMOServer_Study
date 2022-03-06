@@ -109,9 +109,46 @@ public:
 
 #pragma region TypeCast
 
+template<typename V>
+struct Int2Type
+{
+	enum { Value =  V};
+};
+
 template<typename TL>
 class TypeConversion
 {
+public:
+	enum
+	{
+		length = Length<TL>::value
+	};
 
+	TypeCast()
+	{
+		MakeTable(Int2Type<0>(), Int2Type<0>());
+	}
+
+	template <int32 i, int32 j>
+	static void MakeTable(Int2Type<i>, Int2Type<j>)
+	{
+		using FromType = typename TypeAt<TL, i>::Result;
+		using ToType = typename TypeAt<TL, j>::Result;
+
+		if (Conversion<const FromType*, const ToType*>::exists)
+			s_convert[i][j] = true;
+		else
+			s_convert[i][j] = false;
+
+		MakeTable(Int2Type<i>(), Int2Type<j+1>());
+	}
+
+public:
+	static bool s_convert[length][length];
 };
+
+template <typename TL>
+bool TypeConversion<TL>::s_convert[length][length];
+
+
 #pragma endregion
