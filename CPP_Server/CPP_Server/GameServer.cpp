@@ -14,6 +14,12 @@
 #include <MSWSock.h>
 #include <WS2tcpip.h>
 #pragma comment(lib,"ws2_32.lib")
+
+void HandleError(const char* cause)
+{
+    int32 errCode = ::WSAGetLastError();
+    cout << cause << "ErrCode" <<  errCode << endl;
+}
 int main()
 {
     //WinSock Lib Init
@@ -21,65 +27,69 @@ int main()
     if (::WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
         return 0;
 
-    // socket = 전화 번호
-    SOCKET listenSocket = ::socket(AF_INET, SOCK_STREAM, 0);
-    if (listenSocket == INVALID_SOCKET)
+    //socekt
+    SOCKET serverSocket = ::socket(AF_INET, SOCK_DGRAM, 0);
+    if (serverSocket == INVALID_SOCKET)
     {
-        int32 errCode = ::WSAGetLastError();
-        cout << "Socket Error Code : " << errCode << endl;
-        ::WSACleanup();
-        return 0;
-    }
-    //-----연결할 목적지 설정
-    SOCKADDR_IN serverAddr; //IPv4
-    ::memset(&serverAddr, 0, sizeof(serverAddr));
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_addr.s_addr = ::htonl(INADDR_ANY); //<알아서 골라줘~  << 이론적으로 가능한 모든 주소랑 연결가능
-    //DNS서버를 이용해 서버주소를 찾는 방법을 사용할 예정이다
-    serverAddr.sin_port = htons(7777);
-
-    //안내원 폰 개통, "식당의 대표번호". => Bind
-    if (::bind(listenSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
-    {
-        int32 errCode = ::WSAGetLastError();
-        cout << "Bind Error Code : " << errCode << endl;
-        ::WSACleanup();
-        return 0;
-    }
-    //영업시작 => listen
-    if (::listen(listenSocket, 10) == SOCKET_ERROR)// backlog: 최대 대기열 한도
-    {
-        int32 errCode = ::WSAGetLastError();
-        cout << "Listen Error Code : " << errCode << endl;
-        ::WSACleanup();
+        HandleError("Socekt");
         return 0;
     }
 
-    while (true)
+    //옵션을 해석하고 처리하는 주체 : level
+    //소켓코드 -> SOL_SOCKERT
+    //IPv4 -> IPPROTO_IP
+    //TCP 프로토콜 -> IPPROTO_TCP
+
+    //해당 level의 option 설정 :  opt
+    //다양한 옵션이 존재. MS DOC 참고  -> 각 옵션마다 맏는 optval이 다르기 때문에 꼭 확인하자
+    
+    //SO_KEEPALIVE = 주기적으로 연결 상태 확인 여부(TCP_ONLY)
+    //상대방이 연결을 일방적으로 끊는 경우에 대한 대처가 가능
+    //주기적으로 연결상태를 확인하는 패킷을 보내서 끊어진 연결을 감지한다.
+    bool enable = true;
+    setsockopt(serverSocket, SOL_SOCKET, SO_KEEPALIVE, (char*)&enable, sizeof(enable));
+
+    //SO_LINGER : 지연하다
+    // 소켓 리소스 반환 전에 보냈던 senddata의 처리 여부
+    // 송신버퍼에 있는 데ㅐ이터를 보낼것인가?
+    LINGER linger;
+    // linger onoff(default = 0) : 
+    // 0 이면 closesocket()이 바로 리턴;
+    // 1 이면 linger sec 만큼 대기 후 리턴;
+    linger.l_onoff = 1;
+    linger.l_linger = 5; //5 sec
+    setsockopt(serverSocket, SOL_SOCKET, SO_LINGER, (char*)&linger , sizeof(linger));
+
+
+    //HALF-CLOSE
+    //SD_SEND : send 막는다.
+    //SD_RECEIVE : recv 막는다
+    //SD_BOTH :  둘다 막는다.
+    //::shutdown(serverSocket, SD_SEND);
+
+    // SO_SNDBUF, SO_RCVBUF : 송수신 버퍼 크기관련 사용.
+    int32 sendBufferSize;
+    int32 optionLen = sizeof(sendBufferSize);
+    ::getsockopt(serverSocket, SOL_SOCKET, SO_SNDBUF, (char*)&sendBufferSize, &optionLen);
+
+    //SO_REUSEADDR : IP주소 및 Port를 재사용
     {
-        SOCKADDR_IN clientAddr; //IPv4
-        ::memset(&clientAddr, 0, sizeof(clientAddr));
-        int32 addrLen = sizeof(clientAddr);
-        //accpet를 통해 Client의 주소를 받아 클라이언트 소켓을 반환한다.
-        SOCKET clientSocket = ::accept(listenSocket, (SOCKADDR*)&clientAddr, &addrLen); //뒤의 두개는 Opt이다. Null로 밀어도됨.
-        if (clientSocket == INVALID_SOCKET)
-        {
-            int32 errCode = ::WSAGetLastError();
-            cout << "Accept Error Code : " << errCode << endl;
-            ::WSACleanup();
-            return 0;
-        }
-
-        //손님입장
-        char ipAddress[16];
-        ::inet_ntop(AF_INET, &clientAddr.sin_addr, ipAddress, sizeof(ipAddress));
-        cout << "Client Connected! IP = " << ipAddress << endl;
-
-        //todo
+        bool enable = true;
+        ::setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&enable, sizeof(enable));
     }
 
+    //IPPROTO_TCP 
+    //TCP_NODELAY : Nagle 알고리즘 작동여부
+    //*Nagle : 데이터가 충분히 크면 보내고, 그렇지 않으면 쌓일 때까지 대기.
+    //==> 불필요한 packet 생성 감소, But 대기하면서 반응 시간 손해.
+    //게임 같은 고반응성 서버에서는 꼭 꺼주는 것이 좋다!!
+    {
+        bool enable = true;
+        ::setsockopt(serverSocket, IPPROTO_TCP, TCP_NODELAY, (char*)&enable, sizeof(enable));
+    }
 
-
+    //소켓 리소스 반환
+    ::closesocket(serverSocket); 
 
     //winsock 종료
     ::WSACleanup();
