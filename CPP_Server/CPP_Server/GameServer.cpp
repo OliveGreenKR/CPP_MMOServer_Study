@@ -21,7 +21,7 @@ void HandleError(const char* cause)
     cout << cause << "ErrCode" <<  errCode << endl;
 }
 
-const int BUFSIZE = 1000;
+const int32 BUFSIZE = 1000;
 
 struct Session // 서버에 접속한 클라이언트의 정보를 구조체로 관리할것 ( 1000개클라 -> 1000개 Session)
 {
@@ -60,91 +60,106 @@ int main()
 	cout << "Accept" << endl;
 
 	/*------------------------------------------------------------
-							Select Model
+							Event Select Model
 	----------------------------------------------------------*/
+	vector<WSAEVENT> wsaEvents;
 	vector<Session> sessions;
 	sessions.reserve(100);
 
-	fd_set reads, writes;
+	WSAEVENT listenEvent = ::WSACreateEvent();
+	wsaEvents.push_back(listenEvent);
+	sessions.push_back(Session{ listenSocket });
+	//소켓과 이벤트 연동
+	if (::WSAEventSelect(listenSocket, listenEvent, FD_ACCEPT | FD_CLOSE) == SOCKET_ERROR)
+		return 0;
 
 	while (true)
 	{
-		//***socket set init
-		FD_ZERO(&reads);
-		FD_ZERO(&writes);
+		
+		int32 index = ::WSAWaitForMultipleEvents(wsaEvents.size(), &wsaEvents[0], FALSE, WSA_INFINITE, FALSE);
+		if (index == WSA_WAIT_FAILED) continue;
 
-		//**ListenSocket Enroll  : 
-		//Accept를 기달리고 있는 listenSocket은 Read를 검사하는 set에 넣어주어야한다.
-		FD_SET(listenSocket, &reads);
+		index -= WSA_WAIT_EVENT_0; //이렇게 해야 제대로된 인덱스가 나온다.(위 리턴값의 특징. 자세한건 문서참조)
+		
+		//::WSAResetEvent(wsaEvents[i]) 해주어야하지만, wsaEnumNetworkEvnets에서
+		//Event Handler를 넣어주면 초기화도 해준다.(다시 non-Signal상태로 바꿔준다.)
+		WSANETWORKEVENTS networkEvents;
+		if (::WSAEnumNetworkEvents(sessions[index].socket, wsaEvents[index], &networkEvents) == SOCKET_ERROR)
+			continue;
 
-		//socket 등록
-		for (Session& s : sessions)
+		//listenre socket check
+		if (networkEvents.lNetworkEvents & FD_ACCEPT)
 		{
-			//소켓 정책에 따라 조건을 나누어 set에 삽입
-			if (s.recvBytes <= s.sendBytes) 
-				FD_SET(s.socket, &reads);
-			else
-				FD_SET(s.socket, &writes);
-		}
-		//[0:window라서 사용안함][set1][set2][set3][Option]
-		// [Option] : 마지막 time out 인자 설정가능
-		timeval timeout;
-		timeout.tv_sec; //set
-		timeout.tv_usec; //micro sec
-		int retVal = ::select(0, &reads, &writes, nullptr, nullptr);  //무한대기로 설정
-		if (retVal == SOCKET_ERROR)	 break;
+			//error-check 
+			if (networkEvents.iErrorCode[FD_ACCEPT_BIT] != 0)
+				continue;
 
-		//select는 준비되지 않은 것은 제거 -> 이제 남은 것들은 모두 가능한 socket일것이다.
-
-		//Listenr socekt 체크 : accept 준비상태 확인
-		if (FD_ISSET(listenSocket, &reads))
-		{
-			//accept 가능 -> 요청한 client가 존재
 			SOCKADDR_IN clientAddr;
 			int32 addrLen = sizeof(clientAddr);
+
+			//accept가능한 상태임을 확인완료
 			SOCKET clientSocket = ::accept(listenSocket, (SOCKADDR*)&clientAddr, &addrLen);
 			if (clientSocket != INVALID_SOCKET)
 			{
-				cout << "Client Connected!" << endl;
-				sessions.push_back(Session{ clientSocket });
+				cout << "client connected!" << endl;
+
+				//소켓과 이벤트 연동
+				WSAEVENT clientEvent = ::WSACreateEvent();
+				wsaEvents.push_back(clientEvent);
+				sessions.push_back(Session{ clientSocket});
+				if (::WSAEventSelect(clientSocket, clientEvent, FD_READ | FD_WRITE | FD_CLOSE) == SOCKET_ERROR)
+					return 0;
 			}
 		}
-		//나머지 소켓 체크
 
-		for (Session& s : sessions)
+		//Client Session 소켓 체크 (read,write)
+		if (networkEvents.lNetworkEvents & FD_READ || networkEvents.lNetworkEvents & FD_WRITE)
 		{
-			//read 체크
-			if (FD_ISSET(s.socket, &reads))
+			//error-check 
+			if ((networkEvents.lNetworkEvents & FD_READ) && (networkEvents.iErrorCode[FD_READ_BIT] != 0))
+				continue;
+			if ((networkEvents.lNetworkEvents & FD_WRITE )&&( networkEvents.iErrorCode[FD_WRITE_BIT] != 0))
+				continue;
+
+			Session& s = sessions[index];
+
+			//read
+			if (s.recvBytes == 0)
 			{
-				int32 recvLen = ::recv(s.socket, s.recvBuffer, BUFSIZE, 0);	
-				if (recvLen <= 0)
+				int32 recvLen = ::recv(s.socket, s.recvBuffer, BUFSIZE, 0);
+				if (recvLen == SOCKET_ERROR && ::WSAGetLastError() != WSAEWOULDBLOCK)
 				{
-					//todo : sessions제거
+					//todo :  session 제거
 					continue;
 				}
 				s.recvBytes = recvLen;
+				cout << "recv Len : " << recvLen << endl;
 			}
 
-			//write체크
-			if (FD_ISSET(s.socket, &writes))
+			//write
+			if (s.recvBytes > s.sendBytes )
 			{
-				//블로킹 소켓-> 모든 데이터 발송
-				//논블로킹 소켓 -> 일부만 발송 가능(상대방 수신버퍼에 따라)
-				int32 sendLen = send(s.socket, &s.recvBuffer[s.sendBytes], s.recvBytes - s.sendBytes, 0);
-				if (sendLen == SOCKET_ERROR)
+				int32 sendLen = ::send(s.socket, &s.recvBuffer[s.sendBytes], s.recvBytes-s.sendBytes, 0);
+				if (sendLen == SOCKET_ERROR && ::WSAGetLastError() != WSAEWOULDBLOCK)
 				{
-					//TODO : session 제거
+					//todo :  session 제거
 					continue;
 				}
 				s.sendBytes += sendLen;
-				if (s.recvBytes == s.sendBytes) //다보냄
+				if (s.sendBytes == s.recvBytes)
 				{
-					s.recvBytes = 0;
 					s.sendBytes = 0;
+					s.recvBytes = 0;
 				}
+				cout << "send data : " << sendLen << endl;
 			}
+			
 		}
-
+		//fd_close 처리
+		if (networkEvents.lNetworkEvents & FD_CLOSE)
+		{
+			//todo: remove socket
+		}
 
 	}
 
