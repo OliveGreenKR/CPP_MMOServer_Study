@@ -2,10 +2,6 @@
 
 class Session;
 
-/*-------------
-	IocpEvent
----------------*/
-
 enum class EventType : uint8
 {
 	Connect,
@@ -14,6 +10,9 @@ enum class EventType : uint8
 	Recv,
 	Send,
 };
+/*-------------
+	IocpEvent
+---------------*/
 
 //OverLapped 확장
 class IocpEvent : public OVERLAPPED
@@ -22,10 +21,11 @@ public:
 	IocpEvent(EventType type);
 
 	void Init();
-	EventType GetType() { return _type; }
+	EventType GetType() { return eventType; }
 
-protected:
-	EventType _type;
+public:
+	EventType		eventType;
+	IocpObjectRef	owner;
 
 };
 
@@ -48,13 +48,13 @@ class AcceptEvent : public IocpEvent
 public:
 	AcceptEvent() : IocpEvent(EventType::Accept) {};
 
-	void SetSession(Session* session) { _session = session; }
-	Session* GetSession() { return _session; }
+	void SetSession(Session* session) { session = session; }
+	SessionRef GetSession() { return session; }
 
-private:
+public:
 	//todo : accept의 경우 추가적인 인자가 필요할 수도 있다, 
 	//session정보 연동필요 :  Listenr의 Register를 위해서
-	Session* _session = nullptr;
+	SessionRef session = nullptr;
 };
 
 

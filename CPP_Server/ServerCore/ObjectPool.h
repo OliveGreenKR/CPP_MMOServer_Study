@@ -30,10 +30,10 @@ public:
 		s_pool.Push(MemoryHeader::DetachHeader(obj));
 #endif
 	}
-
-	static shared_ptr<Ty> MakeShared()
+	template<typename ...Args>
+	static shared_ptr<Ty> MakeShared(Args&&... args)
 	{
-		shared_ptr<Ty> ptr = { Pop(),Push };
+		shared_ptr<Ty> ptr = { Pop(::forward<Args>(args)...),Push };
 		return ptr;
 	}
 private:

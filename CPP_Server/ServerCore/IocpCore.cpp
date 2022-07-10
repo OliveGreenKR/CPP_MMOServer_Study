@@ -2,9 +2,6 @@
 #include "IocpCore.h"
 #include "IocpEvent.h"
 
-//TEMP
-IocpCore GIocpCore;
-
 IocpCore::IocpCore() {
 	_iocpHandle = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0); //CP 생성
 	ASSERT_CRASH(_iocpHandle != INVALID_HANDLE_VALUE);
@@ -14,8 +11,8 @@ IocpCore::~IocpCore() {
 	::CloseHandle(_iocpHandle);
 }
 
-bool IocpCore::Register(IocpObject* iocpObject) {
-	return ::CreateIoCompletionPort(iocpObject->GetHandle(), _iocpHandle, /*key*/reinterpret_cast<ULONG_PTR>(iocpObject), 0);
+bool IocpCore::Register(IocpObjectRef iocpObject) {
+	return ::CreateIoCompletionPort(iocpObject->GetHandle(), _iocpHandle, /*key*/0, 0); //reinterpret_cast<ULONG_PTR>(iocpObject)였었음
 }
 
 //WorkerThread의 할일 :  일감 검사
@@ -23,13 +20,13 @@ bool IocpCore::Dispatch(uint32 timeoutMs) {
 
 	DWORD numOfBytes = 0;
 	//반드시 Ref Count를 통한 제어 필요.
-	IocpObject* iocpObject = nullptr;
+	ULONG_PTR key = 0;
 	IocpEvent* iocpEvent = nullptr;
 
-	if (::GetQueuedCompletionStatus(_iocpHandle, OUT & numOfBytes, OUT reinterpret_cast<PULONG_PTR>(&iocpObject),
+	if (::GetQueuedCompletionStatus(_iocpHandle, OUT & numOfBytes, OUT &key,
 									OUT reinterpret_cast<LPOVERLAPPED*>(&iocpEvent), timeoutMs))
 	{
-		//Event로 일감 종류 확인 및 처리
+		IocpObjectRef iocpObject = iocpEvent->owner;
 		iocpObject->Dispatch(iocpEvent, numOfBytes);
 	}
 	else
@@ -42,6 +39,7 @@ bool IocpCore::Dispatch(uint32 timeoutMs) {
 				return false;
 			default:
 				//TODO :  logiing
+				IocpObjectRef iocpObject = iocpEvent->owner;
 				iocpObject->Dispatch(iocpEvent, numOfBytes);
 				break;
 		}

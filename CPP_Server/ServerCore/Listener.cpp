@@ -3,7 +3,7 @@
 #include "SocketUtils.h"
 #include "IocpEvent.h"
 #include "Session.h"
-
+#include "Service.h"
 
 /*-------------
 	Listener
@@ -19,13 +19,15 @@ Listener::~Listener() {
 }
 
 /*외부 사용*/
-bool Listener::StartAccept(NetAddress netAddress) {
-
+bool Listener::StartAccept(ServerServiceRef service) {
+	_service = service;
+	if (_service == nullptr)
+		return false;
 	_socket = SocketUtils::CreateSocket();
 	if (_socket == INVALID_SOCKET)
 		return false;
 
-	if (GIocpCore.Register(this) == false)
+	if (service->GetIocpCore()->Register(shared_from_this()) == false)
 		return false;
 
 	if (SocketUtils::SetReuseAddress(_socket, true) == false)
@@ -34,16 +36,17 @@ bool Listener::StartAccept(NetAddress netAddress) {
 	if (SocketUtils::SetLinger(_socket,0,0) == false)
 		return false;
 
-	if (SocketUtils::Bind(_socket, netAddress) == false)
+	if (SocketUtils::Bind(_socket, _service->GetNetAddress()) == false)
 		return false;
 
 	if (SocketUtils::Listen(_socket) == false)
 		return false;
 
-	const int32 acceptCount = 1;
+	const int32 acceptCount = _service->GetMaxSessionCount();
 	for (int32 i = 0; i < acceptCount; i++)
 	{
 		AcceptEvent* acceptEvent = xnew<AcceptEvent>();
+		acceptEvent->owner = shared_from_this();
 		_acceptEvents.push_back(acceptEvent);
 		RegisterAccept(acceptEvent);
 	}
@@ -61,16 +64,19 @@ HANDLE Listener::GetHandle() {
 }
 
 void Listener::Dispatch(IocpEvent* iocpEvent, int32 numOfBytes) {
-	ASSERT_CRASH(iocpEvent->GetType() == EventType::Accept);
+	ASSERT_CRASH(iocpEvent->eventType == EventType::Accept);
 
 	AcceptEvent* acceptEvent = static_cast<AcceptEvent*>(iocpEvent);
 	ProcessAccept(acceptEvent);
 }
 
 void Listener::RegisterAccept(AcceptEvent* acceptEvent) { //일감 예약
-	Session* session = xnew<Session>();// 세션생성(test용)
+
+	/*Register IOCP*/
+	SessionRef session = _service->CreateSession(); 
+
 	acceptEvent->Init();
-	acceptEvent->SetSession(session);
+	acceptEvent->session = session;
 
 	DWORD bytesReceived = 0;
 
@@ -88,7 +94,7 @@ void Listener::RegisterAccept(AcceptEvent* acceptEvent) { //일감 예약
 }
 
 void Listener::ProcessAccept(AcceptEvent* acceptEvent) {
-	Session* session = acceptEvent->GetSession();
+	SessionRef session = acceptEvent->session;
 
 	// 어떻게 끝나든 다시 Register를 '꼭' 해주어야한다.
 

@@ -3,7 +3,7 @@
 /*----------------------
 	IocpObject
 ---------------------*/
-class IocpObject
+class IocpObject  : public enable_shared_from_this<IocpObject>
 {
 public:
 	virtual HANDLE GetHandle() abstract; //순수 가상함수 (파생에서 반드시 재정의해야함)
@@ -22,12 +22,9 @@ public:
 
 	HANDLE	GetHandle() { return _iocpHandle; }
 
-	bool	Register(class IocpObject* iocpObject);
+	bool	Register(IocpObjectRef iocpObject);
 	bool	Dispatch(uint32 timeoutMs= INFINITE);
 
 private:
 	HANDLE	_iocpHandle;
 };
-
-//TEMP for debugging
-extern IocpCore GIocpCore;
