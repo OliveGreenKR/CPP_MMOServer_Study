@@ -2,19 +2,19 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Network">
-      <UniqueIdentifier>{1c9614e4-7222-49ae-8c1f-aebd6138c6b6}</UniqueIdentifier>
+      <UniqueIdentifier>{44015ff7-f5fe-4ecb-9510-ba792e92d6c2}</UniqueIdentifier>
     </Filter>
     <Filter Include="Utils">
-      <UniqueIdentifier>{344737ab-32e8-4cd9-b082-3e2f5a2692f7}</UniqueIdentifier>
+      <UniqueIdentifier>{1c94faf8-d38f-44b3-b3f3-39ba3c6951e1}</UniqueIdentifier>
     </Filter>
     <Filter Include="Main">
-      <UniqueIdentifier>{04aaec69-75c2-455a-8764-15a7f0f98d47}</UniqueIdentifier>
+      <UniqueIdentifier>{c0b75513-7471-4500-a833-2626c5040f9c}</UniqueIdentifier>
     </Filter>
     <Filter Include="Thread">
-      <UniqueIdentifier>{5651c47d-e27a-4dd1-a34e-8d6343c17e58}</UniqueIdentifier>
+      <UniqueIdentifier>{0a8a1a96-3bcc-4f5b-ac25-3388457fad31}</UniqueIdentifier>
     </Filter>
     <Filter Include="Memory">
-      <UniqueIdentifier>{22fb39e3-0bd3-4810-91b2-494c0ec49379}</UniqueIdentifier>
+      <UniqueIdentifier>{903143c9-12f7-436d-8004-490b4f0d31bf}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -30,10 +30,10 @@
     <ClInclude Include="CoreMacro.h">
       <Filter>Main</Filter>
     </ClInclude>
-    <ClInclude Include="CoreTLS.h">
+    <ClInclude Include="CoreGlobal.h">
       <Filter>Main</Filter>
     </ClInclude>
-    <ClInclude Include="CoreGlobal.h">
+    <ClInclude Include="CoreTLS.h">
       <Filter>Main</Filter>
     </ClInclude>
     <ClInclude Include="ThreadManager.h">

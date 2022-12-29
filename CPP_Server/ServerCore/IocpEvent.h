@@ -5,73 +5,81 @@ class Session;
 enum class EventType : uint8
 {
 	Connect,
+	Disconnect,
 	Accept,
-	//PreRecv, 0 byte recv
+	//PreRecv,
 	Recv,
-	Send,
+	Send
 };
-/*-------------
+
+/*--------------
 	IocpEvent
 ---------------*/
 
-//OverLapped 확장
 class IocpEvent : public OVERLAPPED
 {
 public:
 	IocpEvent(EventType type);
 
-	void Init();
-	EventType GetType() { return eventType; }
+	void			Init();
 
 public:
 	EventType		eventType;
 	IocpObjectRef	owner;
-
 };
 
-/*----------------------
-	Connect Event
------------------------*/
+/*----------------
+	ConnectEvent
+-----------------*/
 
 class ConnectEvent : public IocpEvent
 {
 public:
-	ConnectEvent() : IocpEvent(EventType::Connect) {};
+	ConnectEvent() : IocpEvent(EventType::Connect) { }
 };
 
-/*----------------------
-	Accept Event
------------------------*/
+/*--------------------
+	DisconnectEvent
+----------------------*/
+
+class DisconnectEvent : public IocpEvent
+{
+public:
+	DisconnectEvent() : IocpEvent(EventType::Disconnect) { }
+};
+
+/*----------------
+	AcceptEvent
+-----------------*/
 
 class AcceptEvent : public IocpEvent
 {
 public:
-	AcceptEvent() : IocpEvent(EventType::Accept) {};
-
-	void SetSession(Session* session) { session = session; }
-	SessionRef GetSession() { return session; }
+	AcceptEvent() : IocpEvent(EventType::Accept) { }
 
 public:
-	//todo : accept의 경우 추가적인 인자가 필요할 수도 있다, 
-	//session정보 연동필요 :  Listenr의 Register를 위해서
-	SessionRef session = nullptr;
+	SessionRef	session = nullptr;
 };
 
+/*----------------
+	RecvEvent
+-----------------*/
 
-/*----------------------
-	Recv Event
------------------------*/
 class RecvEvent : public IocpEvent
 {
 public:
-	RecvEvent() : IocpEvent(EventType::Recv) {};
+	RecvEvent() : IocpEvent(EventType::Recv) { }
 };
 
-/*----------------------
-	Send Event
------------------------*/
+/*----------------
+	SendEvent
+-----------------*/
+
 class SendEvent : public IocpEvent
 {
 public:
-	SendEvent() : IocpEvent(EventType::Send) {};
+	SendEvent() : IocpEvent(EventType::Send) { }
+
+	// TEMP
+	vector<BYTE> buffer;
 };

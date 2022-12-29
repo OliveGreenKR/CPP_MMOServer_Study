@@ -2,52 +2,53 @@
 #include "Memory.h"
 #include "MemoryPool.h"
 
+/*-------------
+	Memory
+---------------*/
 
-/*---------------------------
-	Memory Manager
----------------------------*/
-
-MemoryManager::MemoryManager()
+Memory::Memory()
 {
 	int32 size = 0;
-	int32 tableindex = 0;
+	int32 tableIndex = 0;
 
 	for (size = 32; size <= 1024; size += 32)
 	{
 		MemoryPool* pool = new MemoryPool(size);
 		_pools.push_back(pool);
 
-		while (tableindex <= size)
+		while (tableIndex <= size)
 		{
-			_poolTable[tableindex] = pool;
-			tableindex++; //0~32 -> 1 , ~64 -> 2 ...
+			_poolTable[tableIndex] = pool;
+			tableIndex++;
 		}
 	}
-	for (; size <= 2048; size += 128 )
+
+	for (; size <= 2048; size += 128)
 	{
 		MemoryPool* pool = new MemoryPool(size);
 		_pools.push_back(pool);
 
-		while (tableindex <= size)
+		while (tableIndex <= size)
 		{
-			_poolTable[tableindex] = pool;
-			tableindex++; 
+			_poolTable[tableIndex] = pool;
+			tableIndex++;
 		}
 	}
+
 	for (; size <= 4096; size += 256)
 	{
 		MemoryPool* pool = new MemoryPool(size);
 		_pools.push_back(pool);
 
-		while (tableindex <= size)
+		while (tableIndex <= size)
 		{
-			_poolTable[tableindex] = pool;
-			tableindex++; 
+			_poolTable[tableIndex] = pool;
+			tableIndex++;
 		}
 	}
 }
 
-MemoryManager::~MemoryManager()
+Memory::~Memory()
 {
 	for (MemoryPool* pool : _pools)
 		delete pool;
@@ -55,44 +56,48 @@ MemoryManager::~MemoryManager()
 	_pools.clear();
 }
 
-void* MemoryManager::Allocate(int32 size)
+void* Memory::Allocate(int32 size)
 {
 	MemoryHeader* header = nullptr;
-	const int32 allocsize = size + sizeof(MemoryHeader);
+	const int32 allocSize = size + sizeof(MemoryHeader);
 
 #ifdef _STOMP
-	header = reinterpret_cast<MemoryHeader*>(StompAllocator::Alloc(allocsize));
+	header = reinterpret_cast<MemoryHeader*>(StompAllocator::Alloc(allocSize));
 #else
-	if (allocsize > MAX_ALLOC_SIZE)//너무 크다 -> 일반할당
+	if (allocSize > MAX_ALLOC_SIZE)
 	{
-		header = reinterpret_cast<MemoryHeader*>(::_aligned_malloc(allocsize, SLIST_ALIGNMENT));
+		// 메모리 풀링 최대 크기를 벗어나면 일반 할당
+		header = reinterpret_cast<MemoryHeader*>(::_aligned_malloc(allocSize, SLIST_ALIGNMENT));
 	}
 	else
 	{
-		///메모리 풀에서 꺼내오기.
-		header = _poolTable[allocsize]->Pop();
+		// 메모리 풀에서 꺼내온다
+		header = _poolTable[allocSize]->Pop();
 	}
-#endif
-	return MemoryHeader::AttachHeader(header, allocsize); //데이터시작주소 반환
+#endif	
+
+	return MemoryHeader::AttachHeader(header, allocSize);
 }
-void MemoryManager::Release(void* ptr)
+
+void Memory::Release(void* ptr)
 {
-	MemoryHeader* header = MemoryHeader::DetachHeader(ptr); //헤더 시작주소 반환
-	const int32 allocsize = header->allocSize;
-	
-	ASSERT_CRASH(allocsize >0);
+	MemoryHeader* header = MemoryHeader::DetachHeader(ptr);
+
+	const int32 allocSize = header->allocSize;
+	ASSERT_CRASH(allocSize > 0);
 
 #ifdef _STOMP
 	StompAllocator::Release(header);
 #else
-	if (allocsize > MAX_ALLOC_SIZE)
+	if (allocSize > MAX_ALLOC_SIZE)
 	{
+		// 메모리 풀링 최대 크기를 벗어나면 일반 해제
 		::_aligned_free(header);
 	}
 	else
 	{
-		_poolTable[allocsize]->Push(header);
+		// 메모리 풀에 반납한다
+		_poolTable[allocSize]->Push(header);
 	}
-#endif
+#endif	
 }
-

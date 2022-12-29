@@ -5,35 +5,39 @@
 #include "Session.h"
 #include "Service.h"
 
-/*-------------
+/*--------------
 	Listener
---------------*/
-Listener::~Listener() {
+---------------*/
+
+Listener::~Listener()
+{
 	SocketUtils::Close(_socket);
+
 	for (AcceptEvent* acceptEvent : _acceptEvents)
 	{
-		//TODO
+		// TODO
 
 		xdelete(acceptEvent);
 	}
 }
 
-/*외부 사용*/
-bool Listener::StartAccept(ServerServiceRef service) {
+bool Listener::StartAccept(ServerServiceRef service)
+{
 	_service = service;
 	if (_service == nullptr)
 		return false;
+
 	_socket = SocketUtils::CreateSocket();
 	if (_socket == INVALID_SOCKET)
 		return false;
 
-	if (service->GetIocpCore()->Register(shared_from_this()) == false)
+	if (_service->GetIocpCore()->Register(shared_from_this()) == false)
 		return false;
 
 	if (SocketUtils::SetReuseAddress(_socket, true) == false)
 		return false;
 
-	if (SocketUtils::SetLinger(_socket,0,0) == false)
+	if (SocketUtils::SetLinger(_socket, 0, 0) == false)
 		return false;
 
 	if (SocketUtils::Bind(_socket, _service->GetNetAddress()) == false)
@@ -50,53 +54,49 @@ bool Listener::StartAccept(ServerServiceRef service) {
 		_acceptEvents.push_back(acceptEvent);
 		RegisterAccept(acceptEvent);
 	}
-	
 
 	return true;
 }
-void Listener::CloseSocket() {
+
+void Listener::CloseSocket()
+{
 	SocketUtils::Close(_socket);
 }
 
-/*수신*/
-HANDLE Listener::GetHandle() {
+HANDLE Listener::GetHandle()
+{
 	return reinterpret_cast<HANDLE>(_socket);
 }
 
-void Listener::Dispatch(IocpEvent* iocpEvent, int32 numOfBytes) {
+void Listener::Dispatch(IocpEvent* iocpEvent, int32 numOfBytes)
+{
 	ASSERT_CRASH(iocpEvent->eventType == EventType::Accept);
-
 	AcceptEvent* acceptEvent = static_cast<AcceptEvent*>(iocpEvent);
 	ProcessAccept(acceptEvent);
 }
 
-void Listener::RegisterAccept(AcceptEvent* acceptEvent) { //일감 예약
-
-	/*Register IOCP*/
-	SessionRef session = _service->CreateSession(); 
+void Listener::RegisterAccept(AcceptEvent* acceptEvent)
+{
+	SessionRef session = _service->CreateSession(); // Register IOCP
 
 	acceptEvent->Init();
 	acceptEvent->session = session;
 
 	DWORD bytesReceived = 0;
-
-	if (false == SocketUtils::AcceptEx(_socket, session->GetSocket(), session->_recvBuffer, 0,
-									   sizeof(SOCKADDR_IN) + 16, sizeof(SOCKADDR_IN) + 16, OUT & bytesReceived, static_cast<LPOVERLAPPED>(acceptEvent)))
+	if (false == SocketUtils::AcceptEx(_socket, session->GetSocket(), session->_recvBuffer, 0, sizeof(SOCKADDR_IN) + 16, sizeof(SOCKADDR_IN) + 16, OUT & bytesReceived, static_cast<LPOVERLAPPED>(acceptEvent)))
 	{
-		const int32 errCode = ::WSAGetLastError();
-		if (errCode != WSA_IO_PENDING)
+		const int32 errorCode = ::WSAGetLastError();
+		if (errorCode != WSA_IO_PENDING)
 		{
-			//문제상황 -> 다시 등록,
-			//만약 등록을 안하면 더이상 accept를 해줄 수 없음
+			// 일단 다시 Accept 걸어준다
 			RegisterAccept(acceptEvent);
 		}
 	}
 }
 
-void Listener::ProcessAccept(AcceptEvent* acceptEvent) {
+void Listener::ProcessAccept(AcceptEvent* acceptEvent)
+{
 	SessionRef session = acceptEvent->session;
-
-	// 어떻게 끝나든 다시 Register를 '꼭' 해주어야한다.
 
 	if (false == SocketUtils::SetUpdateAcceptSocket(session->GetSocket(), _socket))
 	{
@@ -106,7 +106,6 @@ void Listener::ProcessAccept(AcceptEvent* acceptEvent) {
 
 	SOCKADDR_IN sockAddress;
 	int32 sizeOfSockAddr = sizeof(sockAddress);
-
 	if (SOCKET_ERROR == ::getpeername(session->GetSocket(), OUT reinterpret_cast<SOCKADDR*>(&sockAddress), &sizeOfSockAddr))
 	{
 		RegisterAccept(acceptEvent);

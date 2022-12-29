@@ -19,7 +19,6 @@ public:
 	static bool BindWindowsFunction(SOCKET socket, GUID guid, LPVOID* fn);
 	static SOCKET CreateSocket();
 
-	//WinSock Wrapping :  SetSockOpt
 	static bool SetLinger(SOCKET socket, uint16 onoff, uint16 linger);
 	static bool SetReuseAddress(SOCKET socket, bool flag);
 	static bool SetRecvBufferSize(SOCKET socket, int32 size);

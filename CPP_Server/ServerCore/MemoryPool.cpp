@@ -1,11 +1,11 @@
 #include "pch.h"
 #include "MemoryPool.h"
 
-/*---------------------
-	Memory Pool          
-----------------------*/
+/*-----------------
+	MemoryPool
+------------------*/
 
-MemoryPool::MemoryPool(int32 allocsize) : _allocSize(allocsize)
+MemoryPool::MemoryPool(int32 allocSize) : _allocSize(allocSize)
 {
 	::InitializeSListHead(&_header);
 }
@@ -13,16 +13,13 @@ MemoryPool::MemoryPool(int32 allocsize) : _allocSize(allocsize)
 MemoryPool::~MemoryPool()
 {
 	while (MemoryHeader* memory = static_cast<MemoryHeader*>(::InterlockedPopEntrySList(&_header)))
-	{
 		::_aligned_free(memory);
-	}
 }
 
 void MemoryPool::Push(MemoryHeader* ptr)
 {
-	
-	ptr->allocSize = 0; //사용중이 아니라는 표시로 활용
-	//Pool에 메모리 반납
+	ptr->allocSize = 0;
+
 	::InterlockedPushEntrySList(&_header, static_cast<PSLIST_ENTRY>(ptr));
 
 	_useCount.fetch_sub(1);
@@ -33,9 +30,10 @@ MemoryHeader* MemoryPool::Pop()
 {
 	MemoryHeader* memory = static_cast<MemoryHeader*>(::InterlockedPopEntrySList(&_header));
 
+	// 없으면 새로 만들다
 	if (memory == nullptr)
 	{
-		memory = reinterpret_cast<MemoryHeader*>(::_aligned_malloc(_allocSize,SLIST_ALIGNMENT));
+		memory = reinterpret_cast<MemoryHeader*>(::_aligned_malloc(_allocSize, SLIST_ALIGNMENT));
 	}
 	else
 	{
@@ -44,5 +42,6 @@ MemoryHeader* MemoryPool::Pop()
 	}
 
 	_useCount.fetch_add(1);
+
 	return memory;
 }
