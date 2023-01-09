@@ -11,6 +11,8 @@
 
 int main()
 {
+	ServerPacketHandler::Init();
+
 	ServerServiceRef service = MakeShared<ServerService>(
 		NetAddress(L"127.0.0.1", 7777),
 		MakeShared<IocpCore>(),
@@ -45,10 +47,10 @@ int main()
 			data->add_victims(4000);
 		}
 		{
-			Protocol::BuffData* data = pkt.add_buffs(); //msg 가변데이터 이기 때문에 포인터를 받아서 활용
+			Protocol::BuffData* data = pkt.add_buffs();
 			data->set_buffid(200);
 			data->set_remaintime(2.5f);
-			data->add_victims(1000); //가변데이터 지만 uint64이기 때문에 바로 add 가능
+			data->add_victims(1000);
 			data->add_victims(2000);
 		}
 
